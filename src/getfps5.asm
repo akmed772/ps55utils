@@ -420,7 +420,7 @@ Msg_WarnVidmode:	db	"Warning: The current DOS maybe not PS/55 DOS." ,0Dh,0Ah, \
 Msg_CrLf:	db	0Dh,0Ah,"$"
 Msg_ErrFileOpen:
 Msg_ErrFileWrite:	db	"Error: Cannot write to PS55FNTJ.BIN" ,0Dh,0Ah, \
-				"       This program requires 768 KB of free drive space." ,0Dh,0Ah ,"$"
+				"       This program requires 1024 KB of free drive space." ,0Dh,0Ah ,"$"
 Msg_ErrDANotFound:	db	"Error: Unknown or missing Display Adapter." ,0Dh,0Ah,"$"
 Msg_Version:	db	"Font ROM Dump for PS/55 Version 0.04 (alpha)" ,0Dh,0Ah,\
 			"This has never been tested on the real machine. I'm glad if you send me a feedback." ,0Dh,0Ah,"$"
