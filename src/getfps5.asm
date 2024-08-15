@@ -15,13 +15,13 @@ start:
 	;print credit
 	mov	dx, Msg_Version
 	call	print
-	;check the current video mode is PS/55 text mode
+	;check the current video mode is PS/55 text
 	mov	ah, 0x0F
 	int	0x10
-	mov	dx, Msg_CurVidMode
-	call	print
-	mov	dh, al
-	call	printhex
+	;mov	dx, Msg_CurVidMode
+	;call	print
+	;mov	dh, al
+	;call	printhex
 	;save current video mode
 	mov	byte [curVidMode], al
 	cmp	al, 8
@@ -148,11 +148,38 @@ readFont_start:
 	int	0x21
 	mov	dx, Msg_ErrFileOpen
 	jc	err
-	
+
 	mov	[hndl], ax
 	mov	byte [bankNum], 0
+loop_nextbank:
+	call	ReadFont1Bank
+	mov	dx, Msg_ErrFileWrite
+	jc	err
+nextbankif:
+	mov	ah, [bankNum]
+	cmp	ah, 7		;read until bank 7 (= 8 * 128k)
+	jge	loopEndRead
+	inc	ah
+	mov	[bankNum], ah
+	jmp	loop_nextbank
+loopEndRead:
+	;close a file
+	mov	bx, [hndl]
+	mov	ah, 0x3e	;DOS: close a file
+	int	0x21
+	
+	xor	ax, ax
+	jmp	exit
+;-----------------------------------------------
+;
+;[hndl] = file handler to write data
+;[bankNum] = bank number to read (1 bank = 128 kb)
+ReadFont1Bank:
+	push	ax
+	push	bx
+	push	cx
+	push	dx
 	mov	word [fontAddrH], 0xA000
-readFont_MsgBank:
 	;print "Reading font (bank x)..."
 	mov	dx, Msg_Reading1
 	call	print
@@ -160,11 +187,13 @@ readFont_MsgBank:
 	call	printhex
 	mov	dx, Msg_Reading2
 	call	print
-readFont:
+readFont4k:
 	;wait for idle
 	mov	dx, 0x3E0	;sequencer register
 wait3E0:
-	cli
+	sti
+	jmp	$+2
+	cli	;Prevent interrupts
 	mov	al, 3
 	out	dx, al
 	jmp	$+2
@@ -173,13 +202,11 @@ wait3E0:
 	in	al, dx
 	dec	dx
 	test	al, 1
-	sti
 	jnz	wait3E0
 	
 	;setCGMemAccess
 	mov	dx, 0x3E0
 	mov	al, 8		;read bank register
-	cli;Prevent interrupts
 	out	dx, al
 	jmp	$+2
 	jmp	$+2
@@ -236,36 +263,25 @@ wait3E0:
 	mov	cx, SIZE
 	mov	dx, rdata
 	int	0x21
-	mov	dx, Msg_ErrFileWrite
-	jc	err
+	jc	errReadFont
 	cmp	ax, cx
-	jb	err
+	jb	errReadFont
 	
 	mov	ax, [fontAddrH]
 	cmp	ax, 0xBF00
-	jge	nextbank
+	jge	endReadFont
 	add	ax, 0x0100
 	mov	[fontAddrH], ax
-	jmp	readFont
-nextbank:
-	mov	word [fontAddrH], 0xA000
-	mov	ah, [bankNum]
-	cmp	ah, 5		;read until bank 5 (= 6 * 128k)
-	jge	endRead
-	inc	ah
-	mov	[bankNum], ah
-	jmp	readFont_MsgBank
-	
-endRead:
-	;close a file
-	mov	bx, [hndl]
-	mov	ah, 0x3e	;DOS: close a file
-	int	0x21
-	
-	xor	ax, ax
-	jmp	exit
+	jmp	readFont4k
+errReadFont:
+	stc
+endReadFont:
+	pop	dx
+	pop	cx
+	pop	bx
+	pop	ax
+	ret
 ;-----------------------------------------------
-;
 print:;dx = address to the message
 	push	ax
 	push	ds
@@ -395,7 +411,7 @@ exit_toDOS:
 	section .data
 Name_Fontfile:	db	"PS55FNTJ.BIN",0
 Msg_Reading1:	db	"Reading font bank " ,"$"
-Msg_Reading2:	db	" of 05 ..." ,0Dh,0Ah,"$"
+Msg_Reading2:	db	" of 07 ..." ,0Dh,0Ah,"$"
 Msg_CurVidMode:	db	"The current video mode is " ,"$"
 Msg_ErrVidmode:	db	"Error: Must run in text mode (DOS K3.x, J4.0 or J5.0)." ,0Dh,0Ah,"$"
 Msg_WarnVidmode:	db	"Warning: The current DOS maybe not PS/55 DOS." ,0Dh,0Ah, \
@@ -406,7 +422,7 @@ Msg_ErrFileOpen:
 Msg_ErrFileWrite:	db	"Error: Cannot write to PS55FNTJ.BIN" ,0Dh,0Ah, \
 				"       This program requires 768 KB of free drive space." ,0Dh,0Ah ,"$"
 Msg_ErrDANotFound:	db	"Error: Unknown or missing Display Adapter." ,0Dh,0Ah,"$"
-Msg_Version:	db	"Font ROM Dump for PS/55 Version 0.03 (alpha)" ,0Dh,0Ah,\
+Msg_Version:	db	"Font ROM Dump for PS/55 Version 0.04 (alpha)" ,0Dh,0Ah,\
 			"This has never been tested on the real machine. I'm glad if you send me a feedback." ,0Dh,0Ah,"$"
 METACREDIT:	db	"Copyright (c) 2024 akm.$"
 
