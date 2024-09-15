@@ -79,17 +79,23 @@ enableda_search:
 	sti;Allow interrupts
 	;compare POS ID
 	cmp	cx, 0xEFFE;Display Adapter II, III, V
+	mov	dx, Msg_DANameDA2
 	jz	enableda_daFound
-	cmp	cx, 0xE013;?
+	cmp	cx, 0xE013;Layout Display Terminal
+	mov	dx, Msg_DANameLDT
 	jz	enableda_daFound
 	cmp	cx, 0xECCE;Display Adapter IV
+	mov	dx, Msg_DANameDA4
 	jz	enableda_daFound
 	cmp	cx, 0xECEC;Display Adapter IV, B1
+	mov	dx, Msg_DANameDB1
 	jz	enableda_daFound
 	cmp	cx, 0xEFD8;Display Adapter/J
+	mov	dx, Msg_DANameDAJ
 	jz	enableda_daFound
 	and	cx, 0xFFE0
 	cmp	cx, 0x9000;0x9000-0x901F Display Adapter A1, A2, Plasma
+	mov	dx, Msg_DANameDA1
 	jz	enableda_daFound
 	inc	bh
 	cmp	bh, 0x0f
@@ -99,6 +105,10 @@ enableda_daNotFound:
 	mov	dx, Msg_ErrDANotFound
 	jmp	err
 enableda_daFound:
+	;print adapter detected message
+	call	print
+	mov	dx, Msg_DADetected
+	call	print
 	;ah bit 2-0: Channel Select
 	mov	byte [cardNo], bh
 	;enter video subsystem setup
@@ -285,6 +295,7 @@ endReadFont:
 print:;dx = address to the message
 	push	ax
 	push	ds
+	;skip print if VGA is disabled
 	mov	ah, [isVGADisabled]
 	cmp	ah, 1
 	je	print_end
@@ -358,8 +369,10 @@ exit:
 	mov	ah, [isVGADisabled]
 	cmp	ah, 1
 	je	disableda
-	jmp	exit_toDOS
+	jmp	exit_PrintMes
 disableda:
+	;to save return code (AL)
+	push	ax
 	;enter DA setup
 	cli;Prevent interrupts
 	mov	bh, [cardNo]
@@ -397,11 +410,24 @@ disableda:
 	jmp	$+2
 	sti;Allow interrupts
 	;reset video mode
-	mov	ah, 0
-	mov	al, [curVidMode]
-	int	0x10
+;	mov	ah, 0
+;	mov	al, [curVidMode]
+;	int	0x10
+	pop	ax
+	jmp	exit_PrintMes
+exit_PrintMes:
+	;to save return code (AL)
+	push	ax
+	cmp	al, 1
+	jae	exit_err1
+	mov	dx, Msg_Exit0
+	jmp	exit_toDOS
+exit_err1:
+	mov	dx, Msg_Exit1
 	jmp	exit_toDOS
 exit_toDOS:
+	call	print
+	pop	ax
 	mov	ah, 0x02
 	mov	dl, 0x07	;buzz
 	int	0x21
@@ -414,16 +440,23 @@ Msg_Reading1:	db	"Reading font bank " ,"$"
 Msg_Reading2:	db	" of 07 ..." ,0Dh,0Ah,"$"
 Msg_CurVidMode:	db	"The current video mode is " ,"$"
 Msg_ErrVidmode:	db	"Error: Must run in text mode (DOS K3.x, J4.0 or J5.0)." ,0Dh,0Ah,"$"
-Msg_WarnVidmode:	db	"Warning: The current DOS maybe not PS/55 DOS." ,0Dh,0Ah, \
-				"You can run this program, but it may damage your system and monitor." ,0Dh,0Ah, \
+Msg_DANameDA2:	db	"Display Adapter II, III or V" ,"$"
+Msg_DANameLDT:	db	"Layout Display Terminal" ,"$"
+Msg_DANameDA4:	db	"Display Adapter IV" ,"$"
+Msg_DANameDB1:	db	"Display Adapter IV or B1" ,"$"
+Msg_DANameDAJ:	db	"Display Adapter /J" ,"$"
+Msg_DANameDA1:	db	"Display Adapter A1, A2 or Plasma Display" ,"$"
+Msg_DADetected:	db	" is detected." ,0Dh,0Ah,"$"
+Msg_WarnVidmode:	db	"Warning: The current video adapter is VGA. The screen will be corrupt." ,0Dh,0Ah, \
 				"If you want to continue, press Y: " ,"$"
 Msg_CrLf:	db	0Dh,0Ah,"$"
 Msg_ErrFileOpen:
 Msg_ErrFileWrite:	db	"Error: Cannot write to PS55FNTJ.BIN" ,0Dh,0Ah, \
 				"       This program requires 1024 KB of free drive space." ,0Dh,0Ah ,"$"
 Msg_ErrDANotFound:	db	"Error: Unknown or missing Display Adapter." ,0Dh,0Ah,"$"
-Msg_Version:	db	"Font ROM Dump for PS/55 Version 0.04 (alpha)" ,0Dh,0Ah,\
-			"This has never been tested on the real machine. I'm glad if you send me a feedback." ,0Dh,0Ah,"$"
+Msg_Exit0:	db	"Dump completed." ,0Dh,0Ah,"$"
+Msg_Exit1:	db	"Program terminated." ,0Dh,0Ah,"$"
+Msg_Version:	db	"Font ROM Dump for PS/55 Version 0.05" ,0Dh,0Ah,"$"
 METACREDIT:	db	"Copyright (c) 2024 akm.$"
 
 	section .bss
