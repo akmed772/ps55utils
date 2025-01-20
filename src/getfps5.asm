@@ -3,7 +3,7 @@
 
 ;directive for NASM
 [BITS 16]
-SIZE equ 4096
+SIZE equ 512
 
 	section .text
 	global start
@@ -245,9 +245,11 @@ loopEndRead:
 	xor	ax, ax
 	jmp	exit
 ;-----------------------------------------------
-;
+;Dump a bank of DA font ROM data into a file
 ;[hndl] = file handler to write data
 ;[bankNum] = bank number to read (1 bank = 128 kb)
+;Vertical Sync Video Inactive Time: 0.30 ms = 300 us = 4800 cycles @ 16 MHz
+;Horizontal Sync Video Inactive Time: 3.4 us = 54  cycles
 ReadFont1Bank:
 	push	ax
 	push	bx
@@ -265,16 +267,16 @@ ReadFont1Bank:
 	;call	printhex
 	mov	dx, Msg_Reading3
 	call	print
-readFont4k:
+readFont512:
 	;wait for idle
 wait3E0:
 	sti
 	jmp	$+2
 	;---begin for debug
-;	mov	dx, [fontAddrH]
-;	call	printhex
-;	xchg	dh, dl
-;	call	printhex
+	;mov	dx, [fontAddrH]
+	;call	printhex
+	;xchg	dh, dl
+	;call	printhex
 	;---end debug
 	cli	;Prevent interrupts
 	mov	dx, 0x3E0	;sequencer register
@@ -352,11 +354,14 @@ wait3E0:
 	jb	errReadFont
 	
 	mov	ax, [fontAddrH]
-	cmp	ax, 0xBF00
-	jge	endReadFont
-	add	ax, 0x0100
+	add	ax, SIZE / 16
+	cmp	ax, 0xC000
+	jae	noerrReadFont
 	mov	[fontAddrH], ax
-	jmp	readFont4k
+	jmp	readFont512
+noerrReadFont:
+	clc
+	jmp	endReadFont
 errReadFont:
 	stc
 endReadFont:
@@ -382,7 +387,7 @@ print_end:
 	pop	ax
 	ret
 ;-----------------------------------------------
-printhex:;dh = hexadecimal value
+printhex:;dh = 2-digit hexadecimal value
 	push	ax
 	push	cx
 	push	dx
@@ -541,7 +546,7 @@ Name_Fontfile:	db	"DUMP",0
 ;Msg_ReadConf2:	db	0Dh,0Ah,"$"
 Msg_Reading1:	db	"Reading font bank " ,"$"
 ;Msg_Reading2:	db	" of " ,"$"
-Msg_Reading3:	db	" ..." ,0Dh,0Ah,"$"
+Msg_Reading3:	db	"h ..." ,0Dh,0Ah,"$"
 Msg_CurVidMode:	db	"The current video mode is " ,"$"
 Msg_ErrVidmode:	db	"Error: Must run in text mode (DOS K3.x, J4.0 or J5.0)." ,0Dh,0Ah,"$"
 Msg_DANameDA2:	db	"Display Adapter II, III or V" ,"$"
