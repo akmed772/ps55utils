@@ -1,4 +1,4 @@
-;Copyright (c) 2023-2024 akm
+;Copyright (c) 2023-2025 akm
 ;This content is under the MIT License.
 
 ;directive for NASM
@@ -15,13 +15,76 @@ start:
 	;print credit
 	mov	dx, Msg_Version
 	call	print
+	xor	bx, bx
+parse:;ds:[si] (si:81h-FFh) parameters
+	cld;clear direction flag
+	mov	byte [paramBankNumFrom], -1
+	mov	si,0x81
+parse_0:
+	lodsb
+parse_1:
+	cmp	al,0x0D;=(CR)
+	jne	parse_2
+	jmp	parse_end
+parse_2:
+	cmp	al,' '
+	jbe	parse_0
+	dec	si
+	call	getnum
+	;the number of banks to dump must be 0 - 63.
+	mov	dx, Msg_ErrParamNum
+	jc	err
+	cmp	bx, 63
+	ja	err
+	mov	byte [paramBankNumFrom], bl
+	mov	byte [paramBankNumTo], bl
+	;verify the next is '-'
+	lodsb
+	cmp	al,'-'
+	jne	parse_end
+	;the next will be a number
+	call	getnum
+	mov	dx, Msg_ErrParamNum
+	jc	err
+	cmp	bx, 63
+	ja	err
+	mov	byte [paramBankNumTo], bl
+	je	parse_end
+parse_searchnext:
+	lodsb
+	cmp	al,0x0D;=(CR)
+	je	parse_end
+	cmp	al,' '
+	jbe	parse_0
+	jmp	parse_searchnext
+parse_end:
+	mov	dx, Msg_ErrParamNum
+	mov	al, [paramBankNumFrom]
+	cmp	al, -1
+	je	err
+	mov	bl, [paramBankNumTo]
+	;paramBankNumTo must be >= paramBankNumFrom
+	cmp	al, bl
+	ja	err
+	;---begin for debug
+;	mov	dx, Msg_ReadConf1
+;	call	print
+;	mov	dh, [paramBankNumFrom]
+;	call	printhex
+;	mov	dh, [paramBankNumTo]
+;	call	printhex
+;	mov	dx, Msg_ReadConf2
+;	call	print
+	;---end debug
 	;check the current video mode is PS/55 text
 	mov	ah, 0x0F
 	int	0x10
-	;mov	dx, Msg_CurVidMode
-	;call	print
-	;mov	dh, al
-	;call	printhex
+	mov	dx, Msg_CurVidMode
+	call	print
+	mov	dh, al
+	call	printhex
+	mov	dx, Msg_CrLf
+	call	print
 	;save current video mode
 	mov	byte [curVidMode], al
 	cmp	al, 8
@@ -160,14 +223,15 @@ readFont_start:
 	jc	err
 
 	mov	[hndl], ax
-	mov	byte [bankNum], 0
+	mov	al, [paramBankNumFrom]
+	mov	byte [bankNum], al
 loop_nextbank:
 	call	ReadFont1Bank
 	mov	dx, Msg_ErrFileWrite
 	jc	err
 nextbankif:
 	mov	ah, [bankNum]
-	cmp	ah, 7		;read until bank 7 (= 8 * 128k)
+	cmp	ah, [paramBankNumTo]	;read until bank [paramBankNum] (= nn * 128k)
 	jge	loopEndRead
 	inc	ah
 	mov	[bankNum], ah
@@ -190,20 +254,30 @@ ReadFont1Bank:
 	push	cx
 	push	dx
 	mov	word [fontAddrH], 0xA000
-	;print "Reading font (bank x)..."
+	;print "Reading font bank no. n ..."
 	mov	dx, Msg_Reading1
 	call	print
 	mov	dh, [bankNum]
 	call	printhex
-	mov	dx, Msg_Reading2
+;	mov	dx, Msg_Reading2
+;	call	print
+;	mov	dh, [paramBankNum]
+	;call	printhex
+	mov	dx, Msg_Reading3
 	call	print
 readFont4k:
 	;wait for idle
-	mov	dx, 0x3E0	;sequencer register
 wait3E0:
 	sti
 	jmp	$+2
+	;---begin for debug
+;	mov	dx, [fontAddrH]
+;	call	printhex
+;	xchg	dh, dl
+;	call	printhex
+	;---end debug
 	cli	;Prevent interrupts
+	mov	dx, 0x3E0	;sequencer register
 	mov	al, 3
 	out	dx, al
 	jmp	$+2
@@ -342,6 +416,33 @@ printhex_end:
 	pop	ax
 	ret
 ;-----------------------------------------------
+getnum:;convert ASCII characters into the numeric value (cf = 1 when the input is invalid)
+;[in]ds:si = ASCII of number [out]bx=number, si=point to char after number
+	xor	bx, bx
+getnum_1:
+	lodsb
+	sub	al, '0'
+	jb	getnum_notnum
+	cmp	al, 9
+	ja	getnum_notnum
+	cbw
+	xchg	ax, bx
+	mov	dx, 10
+	mul	dx 
+	add	bx, ax
+	;return 0 if the number is larger than 65535
+	jc	getnum_toolarge
+	jmp	getnum_1
+getnum_notnum:
+	clc
+	jmp	getnum_ret
+getnum_toolarge:
+	stc
+	jmp	getnum_ret
+getnum_ret:
+	dec	si
+	ret
+;-----------------------------------------------
 enableda_CardEnable:
 	mov	dx, 0x102
 	in	al, dx
@@ -435,9 +536,12 @@ exit_toDOS:
 	int	0x21
 
 	section .data
-Name_Fontfile:	db	"PS55FNTJ.BIN",0
+Name_Fontfile:	db	"DUMP",0
+;Msg_ReadConf1:	db	"Read bank: " ,"$"
+;Msg_ReadConf2:	db	0Dh,0Ah,"$"
 Msg_Reading1:	db	"Reading font bank " ,"$"
-Msg_Reading2:	db	" of 07 ..." ,0Dh,0Ah,"$"
+;Msg_Reading2:	db	" of " ,"$"
+Msg_Reading3:	db	" ..." ,0Dh,0Ah,"$"
 Msg_CurVidMode:	db	"The current video mode is " ,"$"
 Msg_ErrVidmode:	db	"Error: Must run in text mode (DOS K3.x, J4.0 or J5.0)." ,0Dh,0Ah,"$"
 Msg_DANameDA2:	db	"Display Adapter II, III or V" ,"$"
@@ -447,23 +551,30 @@ Msg_DANameDB1:	db	"Display Adapter IV or B1" ,"$"
 Msg_DANameDAJ:	db	"Display Adapter /J" ,"$"
 Msg_DANameDA1:	db	"Display Adapter A1, A2 or Plasma Display" ,"$"
 Msg_DADetected:	db	" is detected." ,0Dh,0Ah,"$"
-Msg_WarnVidmode:	db	"Warning: The current video adapter is VGA. The screen will be corrupt." ,0Dh,0Ah, \
+Msg_WarnVidmode:	db	"Warning: The current active video adapter is VGA. The screen will be corrupt." ,0Dh,0Ah, \
 				"If you want to continue, press Y: " ,"$"
 Msg_CrLf:	db	0Dh,0Ah,"$"
 Msg_ErrFileOpen:
-Msg_ErrFileWrite:	db	"Error: Cannot write to PS55FNTJ.BIN" ,0Dh,0Ah, \
-				"       This program requires 1024 KB of free drive space." ,0Dh,0Ah ,"$"
+Msg_ErrFileWrite:	db	"Error: Cannot write to DUMP." ,0Dh,0Ah,"$"
 Msg_ErrDANotFound:	db	"Error: Unknown or missing Display Adapter." ,0Dh,0Ah,"$"
+Msg_ErrParamNum:	db	"Error: Invalid switch." ,0Dh,0Ah, \
+				0Dh,0Ah, \
+				"Usage: GETFPS5 mm[-nn]" ,0Dh,0Ah, \
+				"         mm[-nn]   Specifies a range of bank numbers to dump (0-63).",0Dh,0Ah, \
+				"                   One bank = 128 kilobytes",0Dh,0Ah, \
+				0Dh,0Ah ,"$"
 Msg_Exit0:	db	"Dump completed." ,0Dh,0Ah,"$"
 Msg_Exit1:	db	"Program terminated." ,0Dh,0Ah,"$"
-Msg_Version:	db	"Font ROM Dump for PS/55 Version 0.05" ,0Dh,0Ah,"$"
-METACREDIT:	db	"Copyright (c) 2024 akm.$"
+Msg_Version:	db	"Font ROM Dump utility for PS/55 Version 0.06" ,0Dh,0Ah,"$"
+METACREDIT:	db	"Copyright (c) 2024-2025 akm.$"
 
 	section .bss
 hndl:	resw	1
 fontAddrH:	resw	1
 bak3E0_8:	resb	1
 bankNum:	resb	1
+paramBankNumFrom:	resb	1
+paramBankNumTo:	resb	1
 cardNo:	resb	1
 isVGADisabled:	resb	1
 curVidMode:	resb	1
