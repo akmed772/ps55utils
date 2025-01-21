@@ -174,6 +174,10 @@ enableda_daFound:
 	call	print
 	;ah bit 2-0: Channel Select
 	mov	byte [cardNo], bh
+	;disable VGA via BIOS INT 10h
+	mov	bx, 0x0032
+	mov	ax, 0x0001
+	int	0x10
 	;enter video subsystem setup
 	cli;Prevent interrupts
 	mov	dx, 0x94
@@ -515,6 +519,10 @@ disableda:
 	jmp	$+2
 	jmp	$+2
 	sti;Allow interrupts
+	;enable VGA via BIOS INT 10h
+	mov	bx, 0x0032
+	mov	ax, 0x0000
+	int	0x10
 	;reset video mode
 ;	mov	ah, 0
 ;	mov	al, [curVidMode]
