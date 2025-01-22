@@ -104,15 +104,15 @@ VidmodeIsGraph:
 VidmodeIsOthers:
 	mov	dx, Msg_WarnVidmode
 	call	print
-	mov	ah, 1
-	int	0x21
-	mov	dx, Msg_CrLf
-	call	print
-	cmp	al, 'y'
-	je	enableda
-	cmp	al, 'Y'
-	je	enableda
-	jmp	exit
+;	mov	ah, 1
+;	int	0x21
+;	mov	dx, Msg_CrLf
+;	call	print
+;	cmp	al, 'y'
+;	je	enableda
+;	cmp	al, 'Y'
+;	je	enableda
+;	jmp	exit
 enableda:
 	mov	bh, 0x08
 enableda_search:
@@ -174,7 +174,7 @@ enableda_daFound:
 	call	print
 	;ah bit 2-0: Channel Select
 	mov	byte [cardNo], bh
-	;disable VGA via BIOS INT 10h
+	;disable VGA via BIOS INT 10h, Function 12h
 	mov	bx, 0x0032
 	mov	ax, 0x1201
 	int	0x10
@@ -564,8 +564,8 @@ Msg_DANameDB1:	db	"Display Adapter IV or B1" ,"$"
 Msg_DANameDAJ:	db	"Display Adapter /J" ,"$"
 Msg_DANameDA1:	db	"Display Adapter A1, A2 or Plasma Display" ,"$"
 Msg_DADetected:	db	" is detected." ,0Dh,0Ah,"$"
-Msg_WarnVidmode:	db	"Warning: The current active video adapter is VGA. The screen will be corrupt." ,0Dh,0Ah, \
-				"If you want to continue, press Y: " ,"$"
+Msg_WarnVidmode:	db	"Warning: The current active video adapter is VGA. The screen will be corrupt." ,0Dh,0Ah ,"$"
+;				"If you want to continue, press Y: " ,"$"
 Msg_CrLf:	db	0Dh,0Ah,"$"
 Msg_ErrFileOpen:
 Msg_ErrFileWrite:	db	"Error: Cannot write to DUMP." ,0Dh,0Ah,"$"
