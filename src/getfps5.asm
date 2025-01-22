@@ -176,7 +176,7 @@ enableda_daFound:
 	mov	byte [cardNo], bh
 	;disable VGA via BIOS INT 10h
 	mov	bx, 0x0032
-	mov	ax, 0x0001
+	mov	ax, 0x1201
 	int	0x10
 	;enter video subsystem setup
 	cli;Prevent interrupts
@@ -519,9 +519,9 @@ disableda:
 	jmp	$+2
 	jmp	$+2
 	sti;Allow interrupts
-	;enable VGA via BIOS INT 10h
+	;enable VGA via BIOS INT 10h, Function 12h
 	mov	bx, 0x0032
-	mov	ax, 0x0000
+	mov	ax, 0x1200
 	int	0x10
 	;reset video mode
 ;	mov	ah, 0
@@ -578,7 +578,7 @@ Msg_ErrParamNum:	db	"Error: Invalid switch." ,0Dh,0Ah, \
 				0Dh,0Ah ,"$"
 Msg_Exit0:	db	"Dump completed." ,0Dh,0Ah,"$"
 Msg_Exit1:	db	"Program terminated." ,0Dh,0Ah,"$"
-Msg_Version:	db	"Font ROM Dump utility for PS/55 Version 0.06" ,0Dh,0Ah,"$"
+Msg_Version:	db	"Font ROM Dump utility for PS/55 Version 0.08" ,0Dh,0Ah,"$"
 METACREDIT:	db	"Copyright (c) 2024-2025 akm.$"
 
 	section .bss
