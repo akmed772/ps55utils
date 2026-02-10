@@ -1,8 +1,9 @@
-;Copyright (c) 2023-2025 akm
+;Copyright (c) 2023-2026 akm
 ;This content is under the MIT License.
 
 ;directive for NASM
 [BITS 16]
+[CPU 286]
 SIZE equ 512
 
 	section .text
@@ -15,6 +16,39 @@ start:
 	;print credit
 	mov	dx, Msg_Version
 	call	print
+
+	;get the machine ID (FFFF:Eh) and the sub model ID (FFFF:Bh)
+	push	ds
+	push	ds
+	pop	es
+	mov	ax, 0xFFFF
+	mov	ds, ax
+	mov	al, [ds:0x0e]
+	mov	byte [es:machineID_0], al
+	pop	ds
+	
+	;print the Machine ID
+	mov	dx, Msg_MachineIDis
+	call	print
+	mov	dh, [machineID_0]
+	call	printhex
+	mov	dx, Msg_CrLf
+	call	print
+	
+	;check the machine ID is not an IBM PC compatibles
+	mov	al, [machineID_0]
+	cmp	al, 0xf0	;Machine ID is PC or PS/55 (>= F0h)
+	jae	MachineIsNot5550
+	
+	mov	dx, Msg_CrLf
+	call	print
+	mov	dx, Msg_ErrMachineType
+	call	print
+	mov	al, 1
+	mov	ah, 0x4c	;DOS: terminate with return code
+	int	0x21
+
+MachineIsNot5550:
 	xor	bx, bx
 parse:;ds:[si] (si:81h-FFh) parameters
 	cld;clear direction flag
@@ -403,7 +437,10 @@ printhex:;dh = 2-digit hexadecimal value
 	mov	ax, cs
 	mov	ds, ax
 	mov	dl, dh
-	shr	dl, 4
+	shr	dl, 1
+	shr	dl, 1
+	shr	dl, 1
+	shr	dl, 1
 printhex_toA:
 	add	dl, 0x30
 	cmp	dl, 0x39
@@ -471,6 +508,11 @@ enableda_CardDisable:
 	ret
 ;-----------------------------------------------
 err:
+	;dx = pointer to error message
+	push	dx
+	mov	dx, Msg_CrLf
+	call	print
+	pop	dx
 	call	print
 	mov	al, 1
 	jmp	exit
@@ -555,7 +597,8 @@ Name_Fontfile:	db	"DUMP",0
 Msg_Reading1:	db	"Reading font bank " ,"$"
 ;Msg_Reading2:	db	" of " ,"$"
 Msg_Reading3:	db	"h ..." ,0Dh,0Ah,"$"
-Msg_CurVidMode:	db	"The current video mode is " ,"$"
+Msg_CurVidMode:	db	"Current video mode:  " ,"$"
+Msg_MachineIDis:	db	"Machine ID: " ,"$"
 Msg_ErrVidmode:	db	"Error: Must run in text mode (DOS K3.x, J4.0 or J5.0)." ,0Dh,0Ah,"$"
 Msg_DANameDA2:	db	"Display Adapter II, III or V" ,"$"
 Msg_DANameLDT:	db	"Layout Display Terminal" ,"$"
@@ -570,6 +613,7 @@ Msg_CrLf:	db	0Dh,0Ah,"$"
 Msg_ErrFileOpen:
 Msg_ErrFileWrite:	db	"Error: Cannot write to DUMP." ,0Dh,0Ah,"$"
 Msg_ErrDANotFound:	db	"Error: Unknown or missing Display Adapter." ,0Dh,0Ah,"$"
+Msg_ErrMachineType:	db	"Error: Unsupported machine type." ,0Dh,0Ah,"$"
 Msg_ErrParamNum:	db	"Error: Invalid switch." ,0Dh,0Ah, \
 				0Dh,0Ah, \
 				"Usage: GETFPS5 mm[-nn]" ,0Dh,0Ah, \
@@ -578,8 +622,8 @@ Msg_ErrParamNum:	db	"Error: Invalid switch." ,0Dh,0Ah, \
 				0Dh,0Ah ,"$"
 Msg_Exit0:	db	"Dump completed." ,0Dh,0Ah,"$"
 Msg_Exit1:	db	"Program terminated." ,0Dh,0Ah,"$"
-Msg_Version:	db	"Font ROM Dump utility for PS/55 Version 0.08" ,0Dh,0Ah,"$"
-METACREDIT:	db	"Copyright (c) 2024-2025 akm.$"
+Msg_Version:	db	"Font ROM Dump Utility for PS/55 (MCA) Version 0.09" ,0Dh,0Ah,"$"
+METACREDIT:	db	"Copyright (c) 2024-2026 akm.$"
 
 	section .bss
 hndl:	resw	1
@@ -591,4 +635,5 @@ paramBankNumTo:	resb	1
 cardNo:	resb	1
 isVGADisabled:	resb	1
 curVidMode:	resb	1
+machineID_0:	resb	1
 rdata:	resw	SIZE
