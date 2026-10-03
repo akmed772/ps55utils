@@ -1,4 +1,5 @@
 ;Copyright (c) 2026 akm
+;Modifications by 351Workshop 2026 for 3477S and 5535M
 ;This content is under the MIT License.
 
 ;directive for NASM
@@ -33,10 +34,10 @@ parse_2:
 	jbe	parse_0
 	dec	si
 	call	getnum
-	;the number of banks to dump must be 0 - 15.
+	;the number of banks to dump must be 0 - 63. The 3477-S have 4 ROM sockets, 4Mbit=512Kbyte/ROM, 4*512K=64 Bank.
 	mov	dx, Msg_ErrParamNum
 	jc	err
-	cmp	bx, 15
+	cmp	bx, 63
 	ja	err
 	mov	byte [paramBankNumFrom], bl
 	mov	byte [paramBankNumTo], bl
@@ -48,7 +49,7 @@ parse_2:
 	call	getnum
 	mov	dx, Msg_ErrParamNum
 	jc	err
-	cmp	bx, 15
+	cmp	bx, 63
 	ja	err
 	mov	byte [paramBankNumTo], bl
 	je	parse_end
@@ -157,7 +158,7 @@ loop_nextbank:
 	jc	err
 nextbankif:
 	mov	ah, [bankNum]
-	cmp	ah, [paramBankNumTo]	;read until bank [paramBankNum] (= nn * 48k)
+	cmp	ah, [paramBankNumTo]	;read until bank [paramBankNum] (= nn * 32k)
 	jge	loopEndRead
 	inc	ah
 	mov	byte [bankNum], ah
@@ -220,7 +221,7 @@ ReadFont1Bank:
 ;	mov	dx, Msg_Reading2
 ;	call	print
 ;	mov	dh, [paramBankNum]
-	;call	printhex
+;	call	printhex
 	mov	dx, Msg_Reading3
 	call	print
 readFont512:
@@ -245,22 +246,36 @@ machineBE_1:
 	mov	dx, 0x168
 out16x:
 	out	dx, al
-	
+
 	;readFont
 	push	ds
 	pop	es
-	
+
 	mov	di, rdata
 	mov	ax, [fontAddrH]
 	mov	si, ax
 	mov	al, [bankNum]
 	mov	cl, al
+
+	cmp	byte [machineID_0], 0x36	;Not sure will diffrent language versions of 3477(like 3477-J) have diffrent IDs, this ID is for 3477-S01(Simplified Chinese version).
+	jne	not3477s
+	cmp	byte [machineID_1], 0xbc
+	jne	not3477s
 	
 	mov	ax, 0xF000
 	mov	ds, ax
 	mov	al, cl
-	mov	byte [ds:0], al;[F000:0] = [bankNum]
+
+	mov	dx, 0x3E3	;Use this method to change page when dectect as a 3477.
+	out	dx, al	;0x3E3 = [bankNum]
+	jmp endBankSet
+not3477s:
+	mov	ax, 0xF000
+	mov	ds, ax
+	mov	al, cl
 	
+	mov	byte [ds:0], al	;[F000:0] = [bankNum]
+endBankSet:
 	jmp	$+2
 	jmp	$+2
 	
@@ -283,7 +298,7 @@ out16x:
 	
 	mov	ax, [fontAddrH]
 	add	ax, SIZE
-	cmp	ax, 0xC000	;read segment F000h - FC00h
+	cmp	ax, 0x8000	;read segment F000h - F800h(32KB on 5535M and 3477S), not sure 5551's font rom mapping, but I guess it's still 32KB(?)
 	jae	noerrReadFont
 	mov	[fontAddrH], ax
 	jmp	readFont512
@@ -392,12 +407,12 @@ Msg_ErrFileWrite:	db	"Error: Cannot write to DUMP." ,0Dh,0Ah,"$"
 Msg_ErrParamNum:	db	"Error: Invalid switch." ,0Dh,0Ah, \
 				0Dh,0Ah, \
 				"Usage: GETK55 mm[-nn]" ,0Dh,0Ah, \
-				"         mm[-nn]   Specifies a range of bank numbers to dump (0-15).",0Dh,0Ah, \
-				"                   One bank = 48 kilobytes",0Dh,0Ah, \
+				"         mm[-nn]   Specifies a range of bank numbers to dump (0-63).",0Dh,0Ah, \
+				"                   One bank = 32 kilobytes",0Dh,0Ah, \
 				0Dh,0Ah ,"$"
 Msg_Exit0:	db	"Dump completed." ,0Dh,0Ah,"$"
 Msg_Exit1:	db	"Program terminated." ,0Dh,0Ah,"$"
-Msg_Version:	db	"Font ROM Dump Utility for IBM 5550 Version 0.03" ,0Dh,0Ah,"$"
+Msg_Version:	db	"Font ROM Dump Utility for IBM 5550 Version 0.04" ,0Dh,0Ah,"$"
 METACREDIT:	db	"Copyright (c) 2026 akm.$"
 
 	section .bss
